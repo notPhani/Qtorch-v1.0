@@ -3,6 +3,8 @@ import torch
 import json
 import os
 from typing import Dict
+import sys, os
+sys.path.append(os.path.abspath("."))
 
 @dataclass
 class Preset:
@@ -31,7 +33,7 @@ class Preset:
         
         with open(file_path, 'w') as f:
             json.dump(data, f, indent=4)
-        print(f"✅ Preset saved: {file_path}")
+        print(f"Preset saved: {file_path}")
 
     @classmethod
     def load(cls, file_path: str, device: str = 'cpu'):
