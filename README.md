@@ -8,91 +8,52 @@ Instead of injecting memoryless noise as independent coin flips, QtorchX models 
 
 In short:
 
-> QtorchX doesn’t sprinkle noise on circuits.
-> It evolves it.
+> QtorchX doesn’t sprinkle noise on circuits. It evolves it.
 
-This enables a powerful inverse workflow: backtracking from empirical hardware histograms to the latent physical parameters of the noise field — creating a high-precision **Digital Twin** of the quantum device.
+This enables a powerful inverse workflow: backtracking from empirical hardware histograms to the latent physical parameters of the noise field—creating a high-precision **Digital Twin** of the quantum device.
 
 ---
 
 # The QNaF Physical Formalism
 
-At the core of QtorchX lies the **QNaF (Quantum Noise as Fields) Framework**.
+At the core of QtorchX lies the **QNaF (Quantum Noise as Fields) Framework**. Rather than assigning static Pauli error probabilities, QNaF defines a structured, time-evolving manifold:
 
-Rather than assigning static Pauli error probabilities, QNaF defines a structured, time-evolving manifold:
-
-$[
-\Phi(t) \in \mathbb{R}^{7 \times Q \times T}
-]$
+$$\Phi(t) \in \mathbb{R}^{7 \times Q \times T}$$
 
 Where:
 
-* $[( Q )]$ = number of qubits
-* ( T ) = circuit depth
-* 7 = independent decoherence channels
+* $Q$ = number of qubits
+* $T$ = circuit depth
+* $7$ = independent decoherence channels
 
 The manifold evolves according to a nonlinear, topology-aware dynamical system:
 
-[
-\Phi(t+1) =
-\tanh\Big(
-\mathcal{M}\Phi(t)
-
-* \beta L \Phi(t)
-* \kappa L D(t)
-* \mathcal{N}(\Phi(t))
-* \Sigma(t)
-  \Big)
-  ]
+$$\Phi(t+1) = \tanh\Big( \mathcal{M}\Phi(t) + \beta L \Phi(t) + \kappa L D(t) + \mathcal{N}(\Phi(t)) + \Sigma(t) \Big)$$
 
 Where:
 
-* ( L ) = graph Laplacian derived from circuit connectivity
-* ( D(t) ) = gate-induced disturbance field
-* ( \mathcal{M} ) = temporal memory operator
-* ( \mathcal{N} ) = nonlinear coupling term
-* ( \Sigma(t) ) = stochastic environmental fluctuations
+* $L$ = graph Laplacian derived from circuit connectivity
+* $D(t)$ = gate-induced disturbance field
+* $\mathcal{M}$ = temporal memory operator
+* $\mathcal{N}$ = nonlinear coupling term
+* $\Sigma(t)$ = stochastic environmental fluctuations
 
-The tanh activation ensures bounded thermodynamic stability:
-
-[
-\Phi \in [-1, 1]
-]
-
-Noise is no longer independent per gate — it diffuses, accumulates, saturates, and interacts across qubits and time.
+The $\tanh$ activation ensures bounded thermodynamic stability: $\Phi \in [-1, 1]$. Noise is no longer independent per gate—it diffuses, accumulates, saturates, and interacts across qubits and time.
 
 ---
 
 ## Learnable Decoherence Projections
 
-The hidden manifold does not directly corrupt the quantum state. Instead, it is projected into Pauli error space via two trainable tensors:
+The hidden manifold is projected into Pauli error space via two trainable tensors:
 
-[
-P(t) = W \Phi(t) + B
-]
+$$P(t) = W \Phi(t) + B$$
 
 Where:
 
-* ( W \in \mathbb{R}^{3 \times 7} ) → **Decoherence Projection Matrix (DPM)**
-* ( B \in \mathbb{R}^{3} ) → **Baseline Pauli Offset (BPO)**
+* $W \in \mathbb{R}^{3 \times 7}$ → **Decoherence Projection Matrix (DPM)**
+* $B \in \mathbb{R}^{3}$ → **Baseline Pauli Offset (BPO)**
 
-The resulting Pauli channel strengths:
-
-[
-p_{X,Y,Z}(q,t) = \sigma(P_{X,Y,Z}(q,t))
-]
-
-Where ( \sigma ) is a sigmoid mapping into valid probability space.
-
-Both **DPM** and **BPO** are fully differentiable and trainable.
-
-This enables:
-
-* Hardware fingerprint discovery
-* Device-specific dephasing dominance modeling
-* Automatic calibration via gradient descent
-
-In effect, QtorchX learns how a processor decoheres.
+The resulting Pauli channel strengths are mapped via a sigmoid function: $p_{X,Y,Z}(q,t) = \sigma(P_{X,Y,Z}(q,t))$. Both **DPM** and **BPO** are fully differentiable, enabling hardware fingerprint discovery and device-specific dephasing modeling.
 
 ---
 
@@ -104,83 +65,38 @@ QtorchX is structured into three execution layers optimized for GPU-native perfo
 
 ## 1️⃣ Core Simulation Engine (`qtorchx.core`)
 
-The backend is a statevector engine designed to avoid the (2^n \times 2^n) matrix expansion bottleneck.
+The backend is a statevector engine designed to avoid the $2^n \times 2^n$ matrix expansion bottleneck. By utilizing a path of $|\psi\rangle \rightarrow \text{reshape} \rightarrow \text{permute} \rightarrow U \rightarrow \text{inverse-permute}$, the system guarantees:
 
-Instead of expanding operators globally, QtorchX performs:
-
-[
-|\psi\rangle \rightarrow \text{reshape} \rightarrow \text{permute} \rightarrow U \rightarrow \text{inverse-permute}
-]
-
-This guarantees:
-
-* O((2^n)) memory scaling
+* **$O(2^n)$** memory scaling
 * Linear depth scaling
 * Native GPU acceleration via PyTorch
 
 ### Intelligent Caching
 
-* Static gates → O(1) lookup
-* Parametric gates → LRU cache with angle quantization
-* Optional persistent gate fusion
-
-The result: realistic noise modeling with minimal constant overhead.
+* **Static gates**: $O(1)$ fixed lookup.
+* **Parametric gates**: LRU cache with angle quantization to maximize hit rates.
 
 ---
 
 ## 2️⃣ Physics Layer (`qtorchx.noise`)
 
-The **PhiManifoldExtractor** evolves the hidden noise field at each time slice of the circuit.
-
-Each gate modifies the disturbance field:
-
-[
-D_i(t) = \alpha G_i(t) + \beta M_i(t)
-]
-
-Where:
-
-* ( G_i(t) ) = gate activity
-* ( M_i(t) ) = measurement activity
-
-Noise becomes a function of circuit structure — not an afterthought.
+The **PhiManifoldExtractor** evolves the hidden noise field at each time slice. Each gate modifies the disturbance field $D_i(t) = a G_i(t) + b M_i(t)$, where $G_i(t)$ represents gate activity and $M_i(t)$ represents measurement activity. Noise becomes a direct function of the circuit's spatio-temporal structure.
 
 ---
 
 ## 3️⃣ Calibration Layer (`qtorchx.noise.calibrator`)
 
-The **NoiseCalibrator** closes the loop.
+The **NoiseCalibrator** utilizes the PyTorch autograd engine to minimize the loss between simulation and hardware:
 
-Given empirical bitstring probabilities ( \hat{p} ), the system minimizes:
+$$\mathcal{L} = \text{MSE}(p_{\text{sim}}, \hat{p}) + \lambda \cdot \text{StabilityPenalty}$$
 
-[
-\mathcal{L} =
-\text{MSE}(p_{\text{sim}}, \hat{p})
-
-* \lambda \cdot \text{StabilityPenalty}
-  ]
-
-Gradients flow through:
-
-* Statevector execution
-* Manifold projection
-* DPM and BPO tensors
-
-Result:
-
-[
-\frac{\partial \mathcal{L}}{\partial W},
-\quad
-\frac{\partial \mathcal{L}}{\partial B}
-]
-
-This enables direct-to-hardware calibration.
+Gradients flow back to the **DPM** ($W$) and **BPO** ($B$) tensors, enabling direct-to-hardware calibration.
 
 ---
 
 # 🛠 API Implementation Guide
 
-## High-Fidelity Simulation
+### High-Fidelity Simulation
 
 ```python
 import qtorchx as qtx
@@ -188,45 +104,44 @@ import qtorchx as qtx
 circ = qtx.Circuit(num_qubits=5)
 circ.add('H', [0]).add('CNOT', [0, 1])
 
+# Fetch pre-calibrated hardware preset
 preset = qtx.PresetManager.fetch("qtorch_local")
 
 backend = qtx.QtorchBackend(circuit=circ, simulate_with_noise=True)
 results = backend.get_histogram_data(shots=1000)
+
 ```
 
----
-
-## Real Hardware Calibration
+### Real Hardware Calibration
 
 ```python
+# Backtrack from empirical bitstring probabilities
 calibrator = qtx.NoiseCalibrator(circ, preset_name="qtorch_standard")
 
 history = calibrator.calibrate(target_data, epochs=100)
 
+# Export the Digital Twin
 calibrator.export_qnaf("calibrated_twin_v1")
-```
 
-After calibration, the exported `.qnaf` preset becomes a digital twin of the target hardware.
+```
 
 ---
 
 # Deployment & Credits
 
 **Version**: 1.0.0
+
 **Lead Engineer**: Phani Kumar
+
 **Status**: Stable Release (Patent Pending)
 
-### Installation
+**Installation**:
 
 ```bash
 pip install qtorchx
+
 ```
 
-For optimal calibration throughput, a CUDA-enabled PyTorch installation is strongly recommended.
-
----
-
-QtorchX is licensed under the MIT License.
-The QNaF formalism and associated differentiable architectures are protected research assets.
+QtorchX is licensed under the MIT License. The QNaF formalism and associated differentiable architectures are protected research assets.
 
 ---
