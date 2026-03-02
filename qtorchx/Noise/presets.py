@@ -4,7 +4,6 @@ import json
 import os
 from typing import Dict
 import sys, os
-sys.path.append(os.path.abspath("."))
 
 @dataclass
 class Preset:

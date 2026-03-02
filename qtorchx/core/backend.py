@@ -3,7 +3,6 @@ from dataclasses import dataclass, field
 import torch
 import numpy as np
 import sys, os
-sys.path.append(os.path.abspath("."))
 from qtorchx.core.primitives import GateLibrary, Gate, Circuit
 
 

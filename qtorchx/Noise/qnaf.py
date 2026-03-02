@@ -1,7 +1,6 @@
 from typing import Optional, Dict
 import torch
 import sys, os
-sys.path.append(os.path.abspath("."))
 from qtorchx.core.backend import Circuit
 
 class PhiManifoldExtractor:

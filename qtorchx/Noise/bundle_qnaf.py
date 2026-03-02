@@ -1,6 +1,5 @@
 import torch
 import sys, os
-sys.path.append(os.path.abspath("."))
 from qtorchx.noise.presets import Preset, PresetManager
 
 def bundle_optimized_matrices():

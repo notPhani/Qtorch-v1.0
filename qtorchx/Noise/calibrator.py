@@ -5,7 +5,6 @@ import torch.optim as optim
 import json
 from typing import Optional, Dict, Tuple, List
 import sys, os
-sys.path.append(os.path.abspath("."))
 # Internal QtorchX Imports
 from qtorchx.core.primitives import Circuit, Gate
 from qtorchx.noise.presets import Preset, PresetManager
