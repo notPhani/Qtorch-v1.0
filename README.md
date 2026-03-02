@@ -21,13 +21,13 @@ At the core of QtorchX lies the **QNaF (Quantum Noise as Fields) Framework**.
 
 Rather than assigning static Pauli error probabilities, QNaF defines a structured, time-evolving manifold:
 
-[
+$[
 \Phi(t) \in \mathbb{R}^{7 \times Q \times T}
-]
+]$
 
 Where:
 
-* ( Q ) = number of qubits
+* $[( Q )]$ = number of qubits
 * ( T ) = circuit depth
 * 7 = independent decoherence channels
 
