@@ -7,7 +7,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setup(
     name="qtorchx",
-    version="0.0.1",
+    version="0.0.0",
     author="Phani Kumar",
     description="A Differentiable Quantum Noise Simulator powered by the QNaF 7D Manifold",
     long_description=long_description,
