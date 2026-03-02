@@ -7,12 +7,12 @@ class PhiManifoldExtractor:
     Extracts 6-channel phi manifold from quantum circuit execution.
     Output shape: (6, num_qubits, max_depth)
     Channels:
-        [0] Memory: (α-λ)φ_i(t)
+        [0] Memory: (alpha-λ)φ_i(t)
         [1] Spatial Diffusion: β[Lφ(t)]_i
         [2] Disturbance Diffusion: κ[LD(t)]_i
-        [3] Nonlocal Bleed: ε Σ_j exp(-γd_ij)φ_j(t)
-        [4] Nonlinear Saturation: ρ φ_i(t)/(1+φ_i²(t))
-        [5] Stochastic Kicks: σ_i(t)(G_i(t) + M_i(t))η_i(t)
+        [3] Nonlocal Bleed: ε Σ_j exp(-gamma_d_ij)φ_j(t)
+        [4] Nonlinear Saturation: rho φ_i(t)/(1+φ_i²(t))
+        [5] Stochastic Kicks: alpha_i(t)(G_i(t) + M_i(t))η_i(t)
     """
     
     def __init__(
