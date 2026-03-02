@@ -642,3 +642,205 @@ class GateLibrary:
         return gates
 
 
+@dataclass
+class Gate:
+    name: str
+    qubits: List[int]
+    params: List[float] = field(default_factory=list)
+    t: Optional[int] = None
+    depends_on: Optional[List['Gate']] = None
+    label: str = ""
+    metadata: Dict[str, Any] = field(default_factory=dict)
+    
+    def __post_init__(self):
+        if not self.qubits:
+            raise ValueError(f"Gate {self.name} requires at least one qubit")
+        if len(self.qubits) != len(set(self.qubits)):
+            raise ValueError(f"Duplicate qubits in {self.name}: {self.qubits}")
+        
+        # Auto-populate burst_weight if not provided
+        if 'burst_weight' not in self.metadata:
+            self.metadata['burst_weight'] = GateLibrary._get_burst_weight(
+                self.name, 
+                len(self.qubits)
+            )
+    
+    def get_burst_weight(self) -> float:
+        """Get burst weight (from metadata or default)"""
+        return self.metadata.get('burst_weight', 1.0)
+
+class Circuit:
+    def __init__(self, num_qubits: int):
+        self.num_qubits = num_qubits
+        if self.num_qubits > 24:
+            raise ValueError(f"Circuit supports up to 24 qubits but given {self.num_qubits}")
+        self.grid = [[] for _ in range(num_qubits)]
+        self.label_counts = {}
+        self.gates = []  # Keep ordered list for iteration
+        self.metadata = {}
+        
+    def _ensure(self, q: int, t: int):
+        """Extend grid row to include time step t"""
+        while len(self.grid[q]) <= t:
+            self.grid[q].append(None)
+    
+    def _assign_label(self, gate: Gate):
+        """Generate unique label for gate based on name and qubits"""
+        qubit_digits = "".join(str(q) for q in gate.qubits)
+        key = (gate.name, qubit_digits)
+        n = self.label_counts.get(key, 0)
+        self.label_counts[key] = n + 1
+        gate.label = f"Gate{gate.name}{qubit_digits}#{n}"
+    
+    def add(self, gate: Gate) -> int:
+        """
+        Add gate to circuit with automatic or manual scheduling.
+        
+        Features:
+        - Manual placement if gate.t is set (with conflict checking)
+        - Auto-scheduling finds earliest available slot
+        - Handles multi-qubit gates spanning non-adjacent qubits
+        - Respects dependency constraints via gate.depends_on
+        
+        Args:
+            gate: Gate to add to circuit
+            
+        Returns:
+            t: Time step where gate was placed
+            
+        Raises:
+            ValueError: If manually placed gate conflicts with existing gates
+        """
+        qubits = gate.qubits
+        
+        # Validate qubit indices
+        if any(q < 0 or q >= self.num_qubits for q in qubits):
+            raise ValueError(
+                f"Gate {gate.name} uses invalid qubits {qubits}. "
+                f"Valid range: 0-{self.num_qubits - 1}"
+            )
+        
+        self._assign_label(gate)
+        
+        # Manual placement
+        if gate.t is not None:
+            t = gate.t
+            for q in qubits:
+                self._ensure(q, t)
+                if self.grid[q][t] is not None:
+                    conflicting_gate = self.grid[q][t]
+                    raise ValueError(
+                        f"Qubit {q} busy at t={t} with {conflicting_gate.label}. "
+                        f"Cannot place {gate.label}"
+                    )
+            # Place gate
+            for q in qubits:
+                self.grid[q][t] = gate
+            self.gates.append(gate)
+            return t
+        
+        # Auto-scheduling: find earliest valid time step
+        
+        # Start from latest occupied time across target qubits
+        last = max((len(self.grid[q]) - 1 for q in qubits), default=-1)
+        
+        # For multi-qubit gates, block ALL qubits in span (handles CNOT, SWAP, etc.)
+        # This prevents threading gates through the "wire" connecting control/target
+        top, bot = min(qubits), max(qubits)
+        for q in range(top, bot + 1):
+            last = max(last, len(self.grid[q]) - 1)
+        
+        # Respect explicit dependencies
+        for parent in (gate.depends_on or []):
+            if parent.t is not None:
+                last = max(last, parent.t)
+        
+        # Find first available slot starting from last + 1
+        t = last + 1
+        while True:
+            # Ensure all target qubits have entries at t
+            for q in qubits:
+                self._ensure(q, t)
+            
+            # Check for conflicts
+            if any(self.grid[q][t] is not None for q in qubits):
+                t += 1
+                continue
+            
+            # Check span blocking (for multi-qubit gates)
+            if len(qubits) > 1:
+                conflict = False
+                for q in range(top, bot + 1):
+                    self._ensure(q, t)
+                    if self.grid[q][t] is not None:
+                        # Allow if it's a single-qubit gate on a non-target qubit in span
+                        existing = self.grid[q][t]
+                        if q not in qubits and len(existing.qubits) == 1:
+                            continue  # Safe to have single-qubit gate on "wire"
+                        conflict = True
+                        break
+                
+                if conflict:
+                    t += 1
+                    continue
+            
+            # Found valid slot
+            break
+        
+        gate.t = t
+        for q in qubits:
+            self.grid[q][t] = gate
+        
+        self.gates.append(gate)
+        return t
+    
+    @property
+    def depth(self) -> int:
+        """Circuit depth (max time steps across all qubits)"""
+        return max((len(row) for row in self.grid), default=0)
+    
+    @property
+    def size(self) -> int:
+        """Total number of gates"""
+        return len(self.gates)
+    
+    def visualize(self) -> str:
+        """ASCII visualization of circuit grid"""
+        lines = []
+        max_t = self.depth
+        
+        for q in  range(self.num_qubits):
+            line = f"q{q}: |0⟩─"
+            for t in range(max_t):
+                if t < len(self.grid[q]) and self.grid[q][t] is not None:
+                    gate = self.grid[q][t]
+                    # Show gate only on first qubit it acts on
+                    if q == min(gate.qubits):
+                        params_str = f"({gate.params[0]:.2f})" if gate.params else ""
+                        line += f"[{gate.name}{params_str}]─"
+                    else:
+                        line += "──●──" if q != min(gate.qubits) else "──■──"
+                else:
+                    line += "─────"
+            lines.append(line)
+        
+        return "\n".join(lines)
+    
+    def get_time_slice(self, t: int) -> List[Gate]:
+        """Get all unique gates at time step t"""
+        seen_ids = set()
+        gates_at_t = []
+        
+        for q in range(self.num_qubits):
+            if t < len(self.grid[q]) and self.grid[q][t] is not None:
+                gate = self.grid[q][t]
+                # Use id() to track uniqueness instead of hash
+                if id(gate) not in seen_ids:
+                    seen_ids.add(id(gate))
+                    gates_at_t.append(gate)
+        
+        return gates_at_t
+
+    
+    def __repr__(self) -> str:
+        return f"Circuit(qubits={self.num_qubits}, gates={self.size}, depth={self.depth})"

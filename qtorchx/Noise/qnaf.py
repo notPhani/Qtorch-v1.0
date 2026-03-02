@@ -1,6 +1,6 @@
 from typing import Optional, Dict
 import torch
-from qtorchx.Backend.backend import Circuit
+from qtorchx.core.backend import Circuit
 
 class PhiManifoldExtractor:
     """
