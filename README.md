@@ -1,3 +1,4 @@
+![Downloads](https://img.shields.io/pypi/dm/qtorchx)
 # QtorchX: High-Fidelity Quantum Simulation Engine
 
 ### Direct-to-Hardware Digital Twin Calibration via the QNaF Formalism
